@@ -273,7 +273,25 @@ def recevoir_message():
 # Default route
 @app.route('/', methods=['GET'])
 def default_route():
-    return jsonify({"message": "Welcome to RKLLama !", "github": "https://github.com/notpunhnox/rk-llama"}), 200
+    global current_model
+    model_dirs = []
+    models_dir = os.path.expanduser("~/RKLLAMA/models")
+    if os.path.exists(models_dir):
+        for subdir in os.listdir(models_dir):
+            subdir_path = os.path.join(models_dir, subdir)
+            if os.path.isdir(subdir_path):
+                for file in os.listdir(subdir_path):
+                    if file.endswith(".rkllm"):
+                        model_dirs.append(subdir)
+                        break
+
+
+    return jsonify({
+        "message": "Welcome to RKLLama!",
+        "github": "https://github.com/notpunhnox/rk-llama",
+        "current_model": current_model if current_model else "-",
+        "available_models": {"count": len(model_dirs), "list": model_dirs}
+    }), 200
 
 # Launch function
 def main():
