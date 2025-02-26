@@ -4,18 +4,18 @@ from flask import Flask, request, jsonify, Response
 import src.variables as variables
 
 
-def Request(modele_rkllm):
+def Request(model_rkllm):
 
     try:
-        # Mettre le serveur en état de blocage.
+        # Put the server in a locked state.
         isLocked = True
 
         data = request.json
         if data and 'messages' in data:
-            # Réinitialiser les variables globales.
+            # Reset global variables.
             variables.global_status = -1
 
-            # Définir la structure de la réponse renvoyée.
+            # Define the structure of the returned response.
             llmResponse = {
                 "id": "rkllm_chat",
                 "object": "rkllm_chat",
@@ -29,11 +29,10 @@ def Request(modele_rkllm):
                 }
             }
 
-            # Récupérer l'historique du chat depuis la requête JSON
+            # Retrieve chat history from the JSON request
             messages = data["messages"]
 
-
-            # Mise en place du tokenizer
+            # Set up the tokenizer
             tokenizer = AutoTokenizer.from_pretrained(variables.model_id, trust_remote_code=True)
             supports_system_role = "raise_exception('System role not supported')" not in tokenizer.chat_template
 
@@ -44,27 +43,24 @@ def Request(modele_rkllm):
 
             for i in range(1, len(prompt)):
                 if prompt[i]["role"] == prompt[i - 1]["role"]:
-                    raise ValueError("Les rôles doivent alterner entre 'user' et 'assistant'.")
+                    raise ValueError("Roles must alternate between 'user' and 'assistant'.")
 
-            # Mise en place du chat Template
+            # Set up the chat template
             prompt = tokenizer.apply_chat_template(prompt, tokenize=True, add_generation_prompt=True)
             llmResponse["usage"]["prompt_tokens"] = llmResponse["usage"]["total_tokens"] = len(prompt)
-            #print("Prompt final: ", prompt)
-            #print("Messages reçus :", messages)
 
-            sortie_rkllm = ""
+            output_rkllm = ""
 
             if not "stream" in data.keys() or data["stream"] == False:
-                # Créer un thread pour l'inférence du modèle.
-                thread_modele = threading.Thread(target=modele_rkllm.run, args=(prompt,))
+                # Create a thread for model inference.
+                thread_model = threading.Thread(target=model_rkllm.run, args=(prompt,))
                 try:
-                    thread_modele.start()
-                    print("Thread d’inférence démarré")
+                    thread_model.start()
+                    print("Inference thread started")
                 except Exception as e:
-                    print("Erreur lors du démarrage du thread:", e)
+                    print("Error starting the thread:", e)
 
-
-                # Attendre la fin du modèle et vérifier périodiquement le thread d'inférence.
+                # Wait for the model to finish and periodically check the inference thread.
                 threadFinish = False
                 count = 0
                 start = time.time()
@@ -72,16 +68,16 @@ def Request(modele_rkllm):
                 while not threadFinish:
                     while len(variables.global_text) > 0:
                         count += 1
-                        sortie_rkllm += variables.global_text.pop(0)
+                        output_rkllm += variables.global_text.pop(0)
                         time.sleep(0.005)
 
-                        thread_modele.join(timeout=0.005)
-                    threadFinish = not thread_modele.is_alive()
+                        thread_model.join(timeout=0.005)
+                    threadFinish = not thread_model.is_alive()
 
                 total = time.time() - start
                 llmResponse["choices"] = [{
                     "role": "assistant",
-                    "content": sortie_rkllm,
+                    "content": output_rkllm,
                     "logprobs": None,
                     "finish_reason": "stop"
                 }]
@@ -92,22 +88,22 @@ def Request(modele_rkllm):
 
             else:
                 def generate():
-                    thread_modele = threading.Thread(target=modele_rkllm.run, args=(prompt,))
-                    thread_modele.start()
+                    thread_model = threading.Thread(target=model_rkllm.run, args=(prompt,))
+                    thread_model.start()
 
-                    thread_modele_terminé = False
+                    thread_model_finished = False
                     count = 0
                     start = time.time()
 
-                    while not thread_modele_terminé:
+                    while not thread_model_finished:
                         while len(variables.global_text) > 0:
                             count += 1
-                            sortie_rkllm = variables.global_text.pop(0)
+                            output_rkllm = variables.global_text.pop(0)
 
                             llmResponse["choices"] = [
                                 {
                                 "role": "assistant",
-                                "content": sortie_rkllm,
+                                "content": output_rkllm,
                                 "logprobs": None,
                                 "finish_reason": "stop" if variables.global_status == 1 else None,
                                 }
@@ -116,18 +112,18 @@ def Request(modele_rkllm):
                             llmResponse["usage"]["total_tokens"] += 1
                             yield f"{json.dumps(llmResponse)}\n\n"
 
-                        # Calcul du temps de traitement
+                        # Calculate processing time
                         total = time.time() - start
 
-                        # Calcul du nombre de tokens par seconde et du nombre ttal de tokens
+                        # Calculate tokens per second and total tokens
                         llmResponse["usage"]["tokens_per_second"] = count / total
 
-                        thread_modele.join(timeout=0.005)
-                        thread_modele_terminé = not thread_modele.is_alive()
+                        thread_model.join(timeout=0.005)
+                        thread_model_finished = not thread_model.is_alive()
 
                 return Response(generate(), content_type='text/plain')
         else:
-            return jsonify({'status': 'error', 'message': 'Données JSON invalides !'}), 400
+            return jsonify({'status': 'error', 'message': 'Invalid JSON data!'}), 400
     finally:
-        variables.verrou.release()
-        est_bloqué = False
+        variables.lock.release()
+        isLocked = False

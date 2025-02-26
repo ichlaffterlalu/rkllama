@@ -4,10 +4,10 @@ MODEL_PATH = "~/RKLLAMA/models"
 
 
 def GetModels():
-    print("Récupération des modèles...")
+    print("Retrieving models...")
 
     if not os.path.exists(MODEL_PATH):
-        print("Le dossier models n'existait pas.\nCréation en cours...")
+        print("The models folder did not exist.\nCreating...")
         os.mkdir(MODEL_PATH)
 
     models_list = []
@@ -16,7 +16,7 @@ def GetModels():
         for file in files:
             if file.endswith(".rkllm"):
                 models_list.append(file)
-    
-    print("Nombre de modèles valides:", len(models_list), "\n")
+
+    print("Number of valid models:", len(models_list), "\n")
 
     return models_list
