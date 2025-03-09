@@ -2,18 +2,18 @@ import ctypes
 from .classes import *
 from .callback import *
 
-# Connecter la fonction de rappel entre le côté Python et le côté C++
+# Connect the callback function between the Python and C++ sides
 callback_type = ctypes.CFUNCTYPE(None, ctypes.POINTER(RKLLMResult), ctypes.c_void_p, ctypes.c_int)
 callback = callback_type(callback_impl)
 
-# Définir la classe RKLLM, qui inclut l'initialisation, l'inférence et les opérations de libération pour le modèle RKLLM dans la bibliothèque dynamique
+# Define the RKLLM class, which includes initialization, inference and release operations for the RKLLM model in the dynamic library
 class RKLLM(object):
     def __init__(self, model_path, lora_model_path = None, prompt_cache_path = None):
-        
+
         self.format_schema = None
         self.format_type = None
         self.format_options = {}
-        
+
         rkllm_param = RKLLMParam()
         rkllm_param.model_path = bytes(model_path, 'utf-8')
 
@@ -39,7 +39,7 @@ class RKLLM(object):
         rkllm_param.img_content = "".encode('utf-8')
 
         rkllm_param.extend_param.base_domain_id = 0
-        
+
         self.handle = RKLLM_Handle_t()
 
         self.rkllm_init = rkllm_lib.rkllm_init
@@ -71,7 +71,7 @@ class RKLLM(object):
             rkllm_load_lora.argtypes = [RKLLM_Handle_t, ctypes.POINTER(RKLLMLoraAdapter)]
             rkllm_load_lora.restype = ctypes.c_int
             rkllm_load_lora(self.handle, ctypes.byref(lora_adapter))
-        
+
         self.prompt_cache_path = None
         if prompt_cache_path:
             self.prompt_cache_path = prompt_cache_path
@@ -89,7 +89,7 @@ class RKLLM(object):
         if self.lora_model_name:
             rkllm_lora_params = RKLLMLoraParam()
             rkllm_lora_params.lora_adapter_name = ctypes.c_char_p((self.lora_model_name).encode('utf-8'))
-        
+
         rkllm_infer_params = RKLLMInferParam()
         ctypes.memset(ctypes.byref(rkllm_infer_params), 0, ctypes.sizeof(RKLLMInferParam))
         rkllm_infer_params.mode = RKLLMInferMode.RKLLM_INFER_GENERATE
@@ -98,7 +98,7 @@ class RKLLM(object):
         rkllm_input = RKLLMInput()
         rkllm_input.input_mode = RKLLMInputMode.RKLLM_INPUT_TOKEN
 
-        if prompt_tokens[-1] != 2:  
+        if prompt_tokens[-1] != 2:
             prompt_tokens.append(2)
 
         token_array = (ctypes.c_int * len(prompt_tokens))(*prompt_tokens)

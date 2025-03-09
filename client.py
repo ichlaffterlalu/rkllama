@@ -135,7 +135,7 @@ def send_message(message):
     try:
         if STREAM_MODE:
             with requests.post(API_URL + "generate", json=payload, stream=True) as response:
-                
+
                 if response.status_code == 200:
                     print(f"{CYAN}{BOLD}Assistant:{RESET} ", end="")
                     assistant_message = ""
@@ -186,7 +186,7 @@ def send_message(message):
                         completion_tokens = final_json["usage"]["completion_tokens"]
                         print(f"\n\n{GREEN}Tokens per second{RESET}: {tokens_per_second}")
                         print(f"{GREEN}Number of Tokens  {RESET}: {completion_tokens}")
-                        
+
                 HISTORY.append({"role": "assistant", "content": assistant_message})
             else:
                 print(f"{RED}Query error: {response.status_code} - {response.text}{RESET}")
@@ -272,7 +272,7 @@ def chat():
     global VERBOSE, STREAM_MODE, HISTORY, PREFIX_MESSAGE
     os.system("clear")
     print_help_chat()
-    
+
     while True:
         user_input = input(f"{CYAN}You:{RESET} ")
 
@@ -308,12 +308,12 @@ def chat():
 
 def update():
     setup_path = os.path.expanduser('~/RKLLAMA/setup.sh')
-    
+
     # Check if setup.sh exists
     if not os.path.exists(setup_path):
         print("setup.sh not found. Downloading the setup script...")
         url = "https://raw.githubusercontent.com/NotPunchnox/rkllama/refs/heads/main/setup.sh"
-        
+
         # Download setup.sh
         try:
             urllib.request.urlretrieve(url, setup_path)
@@ -367,7 +367,7 @@ def main():
             print(f"{RED}Error: You must specify the model name.{RESET}")
         else:
             load_model(sys.argv[2])
-    
+
     elif command == "unload":
         unload_model()
 
@@ -379,16 +379,16 @@ def main():
             load_model(sys.argv[2], sys.argv[3], sys.argv[4])
 
         chat()
-            
+
     elif command == "rm":
         if sys.argv[2] is None:
             print(f"{RED}Error: You must specify the model name.{RESET}")
         else:
             remove_model(sys.argv[2])
-    
+
     elif command == "pull":
         pull_model(sys.argv[2] if len(sys.argv) < 2 else "" )
-    
+
     else:
         print(f"{RED}Unknown command: {command}.{RESET}")
         print_help()

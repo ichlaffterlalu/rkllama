@@ -26,35 +26,35 @@ QUANT_MAPPING = {
 def get_huggingface_model_info(model_path):
     """
     Fetch model metadata from Hugging Face API if available.
-    
+
     Args:
         model_path: HuggingFace repository path (e.g., 'c01zaut/Qwen2.5-3B-Instruct-RK3588-1.1.4')
-        
+
     Returns:
         Dictionary with enhanced model metadata or None if not available
     """
     try:
         if not model_path or '/' not in model_path:
             return None
-        
+
         # Get DEBUG_MODE from environment for logging
         debug_mode = os.environ.get("RKLLAMA_DEBUG", "0").lower() in ["1", "true", "yes", "on"]
-        
+
         # Extract repo_id from HUGGINGFACE_PATH
         url = f"https://huggingface.co/api/models/{model_path}"
         response = requests.get(url, timeout=5)
-        
+
         if response.status_code == 200:
             data = response.json()
-            
+
             # Process and enhance the metadata
             if 'tags' not in data:
                 data['tags'] = []
-            
+
             # Extract additional info from readme if available
             if 'cardData' not in data:
                 data['cardData'] = {}
-            
+
             # Try to extract parameter size from model name if not in cardData
             if 'params' not in data['cardData']:
                 # Look for patterns like "7b", "3B", "1.5B" in model name or description
@@ -65,7 +65,7 @@ def get_huggingface_model_info(model_path):
                     # Convert to billions if needed
                     if size_unit == 'b':
                         data['cardData']['params'] = int(size_value * 1_000_000_000)
-            
+
             # Extract important information from the description
             description = data.get('description', '')
             if description:
@@ -73,7 +73,7 @@ def get_huggingface_model_info(model_path):
                 quant_pattern = re.search(r'([qQ]\d+_\d+|int4|int8|fp16|4bit|8bit)', description)
                 if quant_pattern:
                     data['quantization'] = quant_pattern.group(1)
-                
+
                 # Check for mentions of specific architectures
                 architectures = {
                     'llama': 'llama',
@@ -85,13 +85,13 @@ def get_huggingface_model_info(model_path):
                     'baichuan': 'baichuan',
                     'yi': 'yi'
                 }
-                
+
                 for arch_name, arch_value in architectures.items():
                     if arch_name.lower() in description.lower():
                         data['architecture'] = arch_value
                         if arch_name.lower() not in data['tags']:
                             data['tags'].append(arch_name.lower())
-            
+
             # Try to extract language information
             languages = []
             language_patterns = {
@@ -103,7 +103,7 @@ def get_huggingface_model_info(model_path):
                 'spanish': 'es',
                 'japanese': 'ja'
             }
-            
+
             for lang_name, lang_code in language_patterns.items():
                 if lang_name.lower() in description.lower() or lang_name.lower() in ' '.join(data['tags']).lower():
                     if lang_name == 'multilingual':
@@ -111,14 +111,14 @@ def get_huggingface_model_info(model_path):
                         languages.extend(['en', 'zh', 'fr', 'de', 'es', 'ja'])
                     elif lang_code and lang_code not in languages:
                         languages.append(lang_code)
-            
+
             # If we found languages, add them
             if languages:
                 data['languages'] = list(set(languages))  # Remove duplicates
             elif 'en' not in data.get('languages', []):
                 # Default to English if no languages detected
                 data['languages'] = ['en']
-            
+
             # Add RK tags if they exist
             rk_patterns = ['rk3588', 'rk3576', 'rkllm', 'rockchip']
             for pattern in rk_patterns:
@@ -127,14 +127,14 @@ def get_huggingface_model_info(model_path):
                         data['tags'].append('rockchip')
                     if pattern not in data['tags'] and pattern != 'rockchip':
                         data['tags'].append(pattern)
-            
+
             # Add metadata about model capabilities
             if 'sibling_models' in data:
                 for sibling in data.get('sibling_models', []):
                     if sibling.get('rfilename', '').endswith('.rkllm'):
                         data['has_rkllm'] = True
                         break
-            
+
             # Extract license information
             if 'license' in data and data['license']:
                 # Map HF license IDs to human-readable names
@@ -146,14 +146,14 @@ def get_huggingface_model_info(model_path):
                     'cc-by-nc-4.0': 'Creative Commons Attribution-NonCommercial 4.0',
                     'cc-by-nc-sa-4.0': 'Creative Commons Attribution-NonCommercial-ShareAlike 4.0'
                 }
-                
+
                 license_id = data['license'].lower()
                 data['license_name'] = license_mapping.get(license_id, data['license'])
                 data['license_url'] = f"https://huggingface.co/{model_path}/blob/main/LICENSE"
-            
+
             if debug_mode:
                 logger.debug(f"Enhanced model info from HF API: {model_path}")
-            
+
             return data
         else:
             if debug_mode:
@@ -168,10 +168,10 @@ def get_huggingface_model_info(model_path):
 def extract_model_details(model_name):
     """
     Extract model parameter size and quantization type from model name
-    
+
     Args:
         model_name: Model name or file path
-        
+
     Returns:
         Dictionary with parameter_size and quantization_level
     """
@@ -180,13 +180,13 @@ def extract_model_details(model_name):
         "parameter_size": "Unknown",
         "quantization_level": "Unknown"
     }
-    
+
     # Remove path and extension if present
     if isinstance(model_name, str):
         basename = os.path.basename(model_name).replace('.rkllm', '')
     else:
         basename = str(model_name)
-    
+
     # Extract parameter size (e.g., 3B, 7B, 13B)
     param_size_match = re.search(r'(\d+\.?\d*)B', basename)
     if param_size_match:
@@ -198,7 +198,7 @@ def extract_model_details(model_name):
         else:
             # For sizes like 3B, 7B
             details["parameter_size"] = f"{size}B"
-    
+
     # Extract quantization type
     # Look for common quantization patterns
     quant_patterns = [
@@ -211,7 +211,7 @@ def extract_model_details(model_name):
         ('w8a8_g256', r'w8a8_g256'),
         ('w8a8_g512', r'w8a8_g512')
     ]
-    
+
     # Mapping to Ollama-style quantization names
     quant_mapping = {
         'w4a16': 'Q4_0',
@@ -223,41 +223,41 @@ def extract_model_details(model_name):
         'w8a8_g256': 'Q8_K_M',
         'w8a8_g512': 'Q8_K_M'
     }
-    
+
     for quant_type, pattern in quant_patterns:
         if re.search(pattern, basename, re.IGNORECASE):
             # Use Ollama-style quantization name if available
             details["quantization_level"] = quant_mapping.get(quant_type, quant_type)
             break
-            
+
     return details
 
 def get_simplified_model_name(full_name, check_collision_map=True):
     """
     Convert a full model name to a simplified Ollama-style name
-    
+
     Args:
         full_name: The full model name/path
         check_collision_map: If True, check if there's already a collision-aware name
-        
+
     Returns:
         A simplified name like "qwen2.5-coder:7b"
     """
     # Handle paths - extract just the directory name
     if os.path.sep in full_name:
         full_name = os.path.basename(os.path.normpath(full_name))
-        
+
     # First check if we already have a collision-resolved name for this model
     if check_collision_map and full_name in FULL_TO_SIMPLE_MAP:
         return FULL_TO_SIMPLE_MAP[full_name]
-    
+
     # Remove any file extension
     full_name = os.path.splitext(full_name)[0]
-    
+
     # Extract model family
     model_family = ""
     model_variants = []
-    
+
     # First, check for model variants throughout the name
     # We'll do this first to ensure we capture all variants regardless of position
     variant_patterns = [
@@ -271,11 +271,11 @@ def get_simplified_model_name(full_name, check_collision_map=True):
         ('medium', r'(?i)(^|[-_\s])medium($|[-_\s])'),
         ('large', r'(?i)(^|[-_\s])large($|[-_\s])'),
     ]
-    
+
     for variant_name, pattern in variant_patterns:
         if re.search(pattern, full_name) and variant_name not in model_variants:
             model_variants.append(variant_name)
-    
+
     # Now handle model family identification
     if re.search(r'(?i)deepseek', full_name):
         model_family = 'deepseek'
@@ -309,7 +309,7 @@ def get_simplified_model_name(full_name, check_collision_map=True):
         # Default to the first part of the name as family
         # Example: "Phi-2" becomes "phi"
         model_family = re.split(r'[-_\d]', full_name)[0].lower()
-    
+
     # Extract parameter size
     param_size = ""
     # Try to find a pattern like "7B" or "3b"
@@ -323,7 +323,7 @@ def get_simplified_model_name(full_name, check_collision_map=True):
             size = size_match.group(1)
             if len(size) <= 2:  # Likely a small number like 3, 7
                 param_size = size + 'b'
-    
+
     # Combine family, variant, and size with the new naming convention
     if model_family:
         # When multiple variants are present, join them with hyphens
@@ -331,7 +331,7 @@ def get_simplified_model_name(full_name, check_collision_map=True):
         if model_variants:
             variant_part = "-".join(model_variants)
             base_part = f"{model_family}-{variant_part}"
-            
+
         if param_size:
             return f"{base_part}:{param_size}"
         else:
@@ -343,10 +343,10 @@ def get_simplified_model_name(full_name, check_collision_map=True):
 def get_original_model_path(simplified_name):
     """
     Look up the original model directory name from a simplified name
-    
+
     Args:
         simplified_name: A simplified model name like "qwen2:3b"
-        
+
     Returns:
         The original model directory name or None if not found
     """
@@ -362,26 +362,26 @@ def initialize_model_mappings():
     global SIMPLE_TO_FULL_MAP, FULL_TO_SIMPLE_MAP
     SIMPLE_TO_FULL_MAP.clear()
     FULL_TO_SIMPLE_MAP.clear()
-    
+
     models_dir = os.path.expanduser("~/RKLLAMA/models")
-    
+
     if not os.path.exists(models_dir):
         logger.warning(f"Models directory not found: {models_dir}")
         return
-    
+
     # First pass: Create simplified names for all models
     model_names = {}  # Maps simple name to a list of full model names
-    
+
     for model_dir in os.listdir(models_dir):
         full_path = os.path.join(models_dir, model_dir)
-        
+
         if os.path.isdir(full_path) and any(f.endswith('.rkllm') for f in os.listdir(full_path)):
             simple_name = get_simplified_model_name(model_dir)
-            
+
             if simple_name not in model_names:
                 model_names[simple_name] = []
             model_names[simple_name].append(model_dir)
-    
+
     # Second pass: Handle collisions by detecting differences
     for simple_name, full_names in model_names.items():
         # If only one model has this simple name, no collision to handle
@@ -391,61 +391,61 @@ def initialize_model_mappings():
             SIMPLE_TO_FULL_MAP[full_names[0]] = full_names[0]  # Allow direct lookup too
             logger.debug(f"Mapped model: {full_names[0]} -> {simple_name}")
             continue
-        
+
         # We have a collision - multiple models with the same simple name
         logger.warning(f"Simplified name collision: {simple_name} for models {', '.join(full_names)}")
-        
+
         # For each colliding model, detect its distinctive features
         model_features = {}
-        
+
         # Look for distinctive features in each model
         for model_dir in full_names:
             features = {}
-            
+
             # Check for quantization type
-            for pattern in ['w4a16', 'w4a16_g32', 'w4a16_g64', 'w4a16_g128', 
+            for pattern in ['w4a16', 'w4a16_g32', 'w4a16_g64', 'w4a16_g128',
                            'w8a8', 'w8a8_g128', 'w8a8_g256', 'w8a8_g512']:
                 if pattern in model_dir.lower():
                     features['quant'] = pattern.replace('_', '-')
                     break
-            
+
             # Check for optimization level
             opt_match = re.search(r'opt-(\d+)', model_dir.lower())
             if opt_match:
                 features['opt'] = f"opt{opt_match.group(1)}"
-            
+
             # Check for hybrid ratio
             ratio_match = re.search(r'ratio-(\d+\.\d+|\d+)', model_dir.lower())
             if ratio_match:
                 features['ratio'] = f"r{ratio_match.group(1)}"
-            
+
             model_features[model_dir] = features
-        
+
         # Find the most distinctive feature across models
         feature_counts = {'quant': {}, 'opt': {}, 'ratio': {}}
-        
+
         for model_dir, features in model_features.items():
             for feature_type, value in features.items():
                 if value not in feature_counts[feature_type]:
                     feature_counts[feature_type][value] = 0
                 feature_counts[feature_type][value] += 1
-        
+
         # Choose the feature type that has the most unique values
         best_feature_type = None
         max_unique_values = 0
-        
+
         for feature_type, values in feature_counts.items():
             unique_count = len(values)
             if unique_count > max_unique_values:
                 max_unique_values = unique_count
                 best_feature_type = feature_type
-        
+
         # If we found a good feature to differentiate, use it
         if best_feature_type and max_unique_values > 1:
             for model_dir in full_names:
                 if best_feature_type in model_features[model_dir]:
                     feature_value = model_features[model_dir][best_feature_type]
-                    
+
                     # If all models in the collision have this feature, we need to use it for all
                     # to differentiate them (otherwise we'll still have collisions)
                     if len(feature_counts[best_feature_type]) == len(full_names):
@@ -453,7 +453,7 @@ def initialize_model_mappings():
                     else:
                         # Only add the feature to models that have it
                         new_name = f"{simple_name}-{feature_value}" if feature_value else simple_name
-                    
+
                     SIMPLE_TO_FULL_MAP[new_name] = model_dir
                     FULL_TO_SIMPLE_MAP[model_dir] = new_name
                     SIMPLE_TO_FULL_MAP[model_dir] = model_dir  # Allow direct lookup
@@ -469,7 +469,7 @@ def initialize_model_mappings():
             SIMPLE_TO_FULL_MAP[simple_name] = full_names[0]
             FULL_TO_SIMPLE_MAP[full_names[0]] = simple_name
             SIMPLE_TO_FULL_MAP[full_names[0]] = full_names[0]  # Allow direct lookup
-            
+
             for i, model_dir in enumerate(full_names[1:], 1):
                 new_name = f"{simple_name}-{i}"
                 SIMPLE_TO_FULL_MAP[new_name] = model_dir
@@ -480,35 +480,35 @@ def initialize_model_mappings():
 def find_model_by_name(name):
     """
     Find the actual model directory name from a simplified name or direct name
-    
+
     Args:
         name: A model name (either simplified like "qwen2:3b" or full path)
-    
+
     Returns:
         The full model directory name or None if not found
     """
     # Try direct lookup first - maybe it's already the full path
     if name in SIMPLE_TO_FULL_MAP:
         return SIMPLE_TO_FULL_MAP[name]
-    
+
     # Check if it's a fully qualified path that exists directly
     models_dir = os.path.expanduser("~/RKLLAMA/models")
     direct_path = os.path.join(models_dir, name)
     if os.path.isdir(direct_path):
         # It exists directly, make sure we use the collision-aware name
         return name
-    
+
     # Try case-insensitive matching
     for full_name in FULL_TO_SIMPLE_MAP.keys():
         if name.lower() == full_name.lower():
             return full_name
-            
+
     # Check if any of the model directories contain the name
     for model_dir in os.listdir(models_dir):
         full_path = os.path.join(models_dir, model_dir)
         if os.path.isdir(full_path) and name.lower() in model_dir.lower():
             return model_dir
-    
+
     # If we get here, the model was not found
     logger.error(f"Model not found: {name}")
     return None
@@ -516,10 +516,10 @@ def find_model_by_name(name):
 def ensure_model_loaded(model_name):
     """
     Ensure a model is properly resolved to a valid directory path
-    
+
     Args:
         model_name: A model name (either simplified or full)
-    
+
     Returns:
         The resolved model directory name or None if not found
     """
@@ -530,13 +530,13 @@ def ensure_model_loaded(model_name):
         models_dir = os.path.expanduser("~/RKLLAMA/models")
         if os.path.exists(os.path.join(models_dir, model_name)):
             return model_name
-        
+
         # Try case-insensitive directory matching
         for dir_name in os.listdir(models_dir):
             if os.path.isdir(os.path.join(models_dir, dir_name)) and model_name.lower() == dir_name.lower():
                 return dir_name
-        
+
         # If we reach here, the model truly wasn't found
         return None
-    
+
     return full_model_name

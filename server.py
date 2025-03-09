@@ -15,7 +15,7 @@ import src.variables as variables
 from src.server_utils import process_ollama_chat_request, process_ollama_generate_request
 from src.debug_utils import StreamDebugger, check_response_format
 from src.model_utils import (
-    get_simplified_model_name, get_original_model_path, extract_model_details, 
+    get_simplified_model_name, get_original_model_path, extract_model_details,
     initialize_model_mappings, find_model_by_name, get_huggingface_model_info
 )
 
@@ -78,32 +78,32 @@ TEMPERATURE={temperature}
 def load_model(model_name, huggingface_path=None, system="", temperature=1.0, From=None):
 
     model_dir = os.path.expanduser(f"~/RKLLAMA/models/{model_name}")
-    
+
     if not os.path.exists(model_dir):
         return None, f"Model directory '{model_name}' not found."
-    
+
     if not os.path.exists(os.path.join(model_dir, "Modelfile")) and (huggingface_path is None and From is None):
         return None, f"Modelfile not found in '{model_name}' directory."
     elif huggingface_path is not None and From is not None:
         create_modelfile(huggingface_path=huggingface_path, From=From, system=system, temperature=temperature)
         time.sleep(0.1)
-    
+
     # Load modelfile
     load_dotenv(os.path.join(model_dir, "Modelfile"), override=True)
-    
+
     from_value = os.getenv("FROM")
     huggingface_path = os.getenv("HUGGINGFACE_PATH")
 
     # View config Vars
     print_color(f"FROM: {from_value}\nHuggingFace Path: {huggingface_path}", "green")
-    
+
     if not from_value or not huggingface_path:
         return None, "FROM or HUGGINGFACE_PATH not defined in Modelfile."
 
     # Change value of model_id with huggingface_path
     variables.model_id = huggingface_path
 
-    
+
     modele_rkllm = RKLLM(os.path.join(model_dir, from_value))
     return modele_rkllm, None
 
@@ -130,7 +130,7 @@ CORS(app)
 def list_models():
     # Return the list of available models in ~/RKLLAMA/models
     models_dir = os.path.expanduser("~/RKLLAMA/models")
-    
+
     if not os.path.exists(models_dir):
         return jsonify({"error": "Le dossier ~/RKLLAMA/models est introuvable."}), 500
 
@@ -139,11 +139,11 @@ def list_models():
     for model in direct_models:
         model_name = os.path.splitext(model)[0]
         model_dir = os.path.join(models_dir, model_name)
-        
+
         os.makedirs(model_dir, exist_ok=True)
-        
+
         shutil.move(os.path.join(models_dir, model), os.path.join(model_dir, model))
-    
+
     model_dirs = []
     for subdir in os.listdir(models_dir):
         subdir_path = os.path.join(models_dir, subdir)
@@ -301,7 +301,7 @@ def recevoir_message():
     if not modele_rkllm:
         return jsonify({"error": "No models are currently loaded."}), 400
 
-    variables.verrou.acquire()
+    variables.lock.acquire()
     return Request(modele_rkllm)
 
 # Ollama API compatibility routes
@@ -310,7 +310,7 @@ def recevoir_message():
 def list_ollama_models():
     # Return models in Ollama API format
     models_dir = os.path.expanduser("~/RKLLAMA/models")
-    
+
     if not os.path.exists(models_dir):
         return jsonify({"models": []}), 200
 
@@ -321,13 +321,13 @@ def list_ollama_models():
             for file in os.listdir(subdir_path):
                 if file.endswith(".rkllm"):
                     size = os.path.getsize(os.path.join(subdir_path, file))
-                    
+
                     # Generate a simplified model name in Ollama style
                     simple_name = get_simplified_model_name(subdir)
-                    
+
                     # Extract parameter size and quantization details if available
                     model_details = extract_model_details(subdir)
-                    
+
                     models.append({
                         "name": simple_name,        # Use simplified name like qwen:3b
                         "model": simple_name,       # Match Ollama's format
@@ -351,17 +351,17 @@ def list_ollama_models():
 def show_model_info():
     data = request.json
     model_name = data.get('name')
-    
+
     if not model_name:
         return jsonify({"error": "Missing model name"}), 400
-    
+
     # Handle simplified model names
     original_model_path = get_original_model_path(model_name)
     if original_model_path:
         model_name = original_model_path
-        
+
     model_dir = os.path.expanduser(f"~/RKLLAMA/models/{model_name}")
-    
+
     if not os.path.exists(model_dir):
         return jsonify({"error": f"Model '{model_name}' not found"}), 404
 
@@ -373,31 +373,31 @@ def show_model_info():
     license_text = ""
     huggingface_path = None
     temperature = 0.8  # Default temperature
-    
+
     if os.path.exists(modelfile_path):
         with open(modelfile_path, "r") as f:
             modelfile_content = f.read()
-            
+
             # Extract system prompt if available
             system_match = re.search(r'SYSTEM="(.*?)"', modelfile_content, re.DOTALL)
             if system_match:
                 system_prompt = system_match.group(1).strip()
-            
+
             # Check for template pattern
             template_match = re.search(r'TEMPLATE="(.*?)"', modelfile_content, re.DOTALL)
             if template_match:
                 template = template_match.group(1).strip()
-            
+
             # Check for LICENSE pattern (some modelfiles have this)
             license_match = re.search(r'LICENSE="(.*?)"', modelfile_content, re.DOTALL)
             if license_match:
                 license_text = license_match.group(1).strip()
-            
+
             # Extract HuggingFace path for API access
             hf_path_match = re.search(r'HUGGINGFACE_PATH="(.*?)"', modelfile_content, re.DOTALL)
             if hf_path_match:
                 huggingface_path = hf_path_match.group(1).strip()
-            
+
             # Extract temperature if available
             temp_match = re.search(r'TEMPERATURE=(\d+\.?\d*)', modelfile_content)
             if temp_match:
@@ -405,37 +405,37 @@ def show_model_info():
                     temperature = float(temp_match.group(1))
                 except ValueError:
                     pass
-    
+
     # Find the .rkllm file
     model_file = None
     for file in os.listdir(model_dir):
         if file.endswith(".rkllm"):
             model_file = file
             break
-    
+
     if not model_file:
         return jsonify({"error": f"Model file not found in '{model_name}' directory"}), 404
-    
+
     file_path = os.path.join(model_dir, model_file)
     size = os.path.getsize(file_path)
-    
+
     # Extract model details
     model_details = extract_model_details(model_name)
     parameter_size = model_details.get("parameter_size", "Unknown")
     quantization_level = model_details.get("quantization_level", "Unknown")
-    
+
     # Determine model family based on name patterns
     family = "llama"  # default family
     families = ["llama"]
-    
+
     # Try to get enhanced information from Hugging Face API
     hf_metadata = get_huggingface_model_info(huggingface_path) if huggingface_path else None
-    
+
     # Use HF metadata to improve model info if available
     if hf_metadata:
         # Extract tags from HF metadata
         tags = hf_metadata.get('tags', [])
-        
+
         # Better determine model family based on HF tags or architecture field
         if hf_metadata.get('architecture') == 'qwen' or 'qwen' in tags or 'qwen2' in tags:
             family = "qwen2"
@@ -461,10 +461,10 @@ def show_model_info():
         elif any('llama-2' in tag for tag in tags) or any('llama2' in tag for tag in tags):
             family = "llama2"
             families = ["llama2", "llama"]
-        
+
         # Extract model card metadata
         model_card = hf_metadata.get('cardData', {})
-        
+
         # Better parameter size from HF metadata
         if 'params' in model_card:
             try:
@@ -477,11 +477,11 @@ def show_model_info():
                 parameter_count = None
         else:
             parameter_count = None
-        
+
         # Extract quantization info
         if 'quantization' in hf_metadata:
             quantization_level = hf_metadata['quantization']
-        
+
         # Better license information
         if 'license' in hf_metadata and not license_text:
             license_text = hf_metadata['license']
@@ -511,19 +511,19 @@ def show_model_info():
         elif re.search(r'(?i)Llama[-_]?2', model_name):
             family = "llama2"
             families = ["llama2", "llama"]
-        
+
         parameter_count = None
-    
+
     # Convert modelfile to Ollama-compatible format
     ollama_modelfile = f"# Modelfile generated by \"ollama show\"\n"
     ollama_modelfile += f"# To build a new Modelfile based on this, replace FROM with:\n"
     ollama_modelfile += f"# FROM {get_simplified_model_name(model_name)}\n\n"
-    
+
     # Change this section to use a more compatible FROM format
     # Instead of absolute paths, use the model file name which is more compatible with Ollama
     # Original: model_blob_path = f"{model_dir}/{model_file}"
     simple_name = get_simplified_model_name(model_name)
-    
+
     if DEBUG_MODE:
         # In debug mode, use absolute paths to help with troubleshooting
         model_blob_path = f"{model_dir}/{model_file}"
@@ -531,32 +531,32 @@ def show_model_info():
     else:
         # In normal mode, use the simplified name format that Ollama clients expect
         ollama_modelfile += f"FROM {simple_name}\n"
-    
+
     if template != "{{ .Prompt }}":
         ollama_modelfile += f'TEMPLATE """{template}"""\n'
-    
+
     if system_prompt:
         ollama_modelfile += f'SYSTEM "{system_prompt}"\n'
-    
+
     if license_text:
         ollama_modelfile += f'LICENSE """{license_text}"""\n'
-    
+
     # Additional model info from HF
     model_description = ""
     repo_url = None
     if hf_metadata:
         model_description = hf_metadata.get('description', '').strip()
-        
+
         # Add description comment to modelfile if available
         if model_description:
             desc_lines = model_description.split('\n')
             desc_comment = '\n'.join([f"# {line}" for line in desc_lines[:5]])  # First 5 lines only
             ollama_modelfile = desc_comment + "\n\n" + ollama_modelfile
-        
+
         # Extract repo URL if available
         if huggingface_path:
             repo_url = f"https://huggingface.co/{huggingface_path}"
-    
+
     # Parse parameter size into numeric format
     numeric_param_size = None
     if parameter_size != "Unknown":
@@ -567,7 +567,7 @@ def show_model_info():
                 numeric_param_size = int(size_in_billions * 1_000_000_000)
             except ValueError:
                 pass
-    
+
     # Use parameter_count from HF metadata if available, otherwise use parsed value
     if parameter_count is None and numeric_param_size is not None:
         parameter_count = numeric_param_size
@@ -581,17 +581,17 @@ def show_model_info():
             parameter_count = 1500000000
         else:
             parameter_count = 0
-    
+
     # Extract base model name (without fine-tuning suffixes)
     base_name = model_name.split('-')[0]
-    
+
     # Determine finetune type if present
     finetune = None
     if "instruct" in model_name.lower():
         finetune = "Instruct"
     elif "chat" in model_name.lower():
         finetune = "Chat"
-    
+
     # Build a more complete model_info dict with architecture details
     model_info = {
         "general.architecture": family,
@@ -606,21 +606,21 @@ def show_model_info():
         "general.type": "model",
         "tokenizer.ggml.pre": family
     }
-    
+
     # Add repo URL if available
     if repo_url:
         model_info["general.base_model.0.repo_url"] = repo_url
         model_info["general.base_model.count"] = 1
-    
+
     # Add finetune info if available
     if finetune:
         model_info["general.finetune"] = finetune
-    
+
     # Add license info if available
     if license_text:
         license_name = "other"
         license_link = ""
-        
+
         # Try to detect common licenses
         if "apache" in license_text.lower():
             license_name = "apache-2.0"
@@ -628,22 +628,22 @@ def show_model_info():
             license_name = "mit"
         elif "qwen research" in license_text.lower():
             license_name = "qwen-research"
-        
+
         if huggingface_path:
             license_link = f"https://huggingface.co/{huggingface_path}/blob/main/LICENSE"
-        
+
         model_info["general.license"] = license_name
         if license_link:
             model_info["general.license.link"] = license_link
         model_info["general.license.name"] = license_name
-    
+
     # Add language info if we can detect it
     if hf_metadata and 'languages' in hf_metadata:
         model_info["general.languages"] = hf_metadata['languages']
     else:
         # Default to English
         model_info["general.languages"] = ["en"]
-    
+
     # Add architecture-specific parameters based on model family
     if family == "qwen2":
         model_info.update({
@@ -677,12 +677,12 @@ def show_model_info():
             "mistral.embedding_length": 4096,
             "mistral.feed_forward_length": 14336
         })
-    
+
     # Calculate modified timestamp
     modified_at = datetime.datetime.fromtimestamp(
         os.path.getmtime(file_path)
     ).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    
+
     # Format parameters string nicely
     parameters_str = parameter_size
     if parameters_str == "Unknown" and parameter_count:
@@ -690,7 +690,7 @@ def show_model_info():
             parameters_str = f"{parameter_count/1_000_000_000:.1f}B".replace('.0B', 'B')
         else:
             parameters_str = f"{parameter_count/1_000_000:.1f}M".replace('.0M', 'M')
-    
+
     # Prepare response with enhanced metadata
     response = {
         "license": license_text or "Unknown",
@@ -711,7 +711,7 @@ def show_model_info():
         "size": size,
         "modified_at": modified_at
     }
-    
+
     # Add Hugging Face specific fields if available
     if hf_metadata:
         response["huggingface"] = {
@@ -721,7 +721,7 @@ def show_model_info():
             "downloads": hf_metadata.get('downloads', 0),
             "likes": hf_metadata.get('likes', 0)
         }
-    
+
     return jsonify(response), 200
 
 @app.route('/api/create', methods=['POST'])
@@ -729,28 +729,28 @@ def create_model():
     data = request.json
     model_name = data.get('name')
     modelfile = data.get('modelfile', '')
-    
+
     if not model_name:
         return jsonify({"error": "Missing model name"}), 400
-    
+
     model_dir = os.path.expanduser(f"~/RKLLAMA/models/{model_name}")
     os.makedirs(model_dir, exist_ok=True)
-    
+
     with open(os.path.join(model_dir, "Modelfile"), "w") as f:
         f.write(modelfile)
-    
+
     # Parse the modelfile to extract parameters
     modelfile_lines = modelfile.strip().split('\n')
     from_line = next((line for line in modelfile_lines if line.startswith('FROM=')), None)
     huggingface_path = next((line for line in modelfile_lines if line.startswith('HUGGINGFACE_PATH=')), None)
-    
+
     if not from_line or not huggingface_path:
         return jsonify({"error": "Invalid Modelfile: missing FROM or HUGGINGFACE_PATH"}), 400
-    
+
     # Extract values
     from_value = from_line.split('=')[1].strip('"\'')
     huggingface_path = huggingface_path.split('=')[1].strip('"\'')
-    
+
     # For compatibility with existing implementation
     return jsonify({"status": "success", "model": model_name}), 200
 
@@ -759,7 +759,7 @@ def pull_model_ollama():
     # TODO: Implement the pull model
     data = request.json
     model = data.get('name')
-    
+
     if not model:
         return jsonify({"error": "Missing model name"}), 400
 
@@ -772,7 +772,7 @@ def pull_model_ollama():
 def delete_model_ollama():
     data = request.json
     model_name = data.get('name')
-    
+
     if not model_name:
         return jsonify({"error": "Missing model name"}), 400
 
@@ -782,7 +782,7 @@ def delete_model_ollama():
         if DEBUG_MODE:
             logger.error(f"Model '{model_name}' not found for deletion")
         return jsonify({"error": f"Model '{model_name}' not found"}), 404
-    
+
     model_path = os.path.expanduser(f"~/RKLLAMA/models/{full_model_name}")
     if not os.path.exists(model_path):
         return jsonify({"error": f"Model directory for '{model_name}' not found"}), 404
@@ -792,14 +792,14 @@ def delete_model_ollama():
         if DEBUG_MODE:
             logger.debug(f"Unloading model '{full_model_name}' before deletion")
         unload_model()
-    
+
     try:
         if DEBUG_MODE:
             logger.debug(f"Deleting model directory: {model_path}")
         shutil.rmtree(model_path)
-        
+
         initialize_model_mappings()
-        
+
         return jsonify({}), 200
     except Exception as e:
         logger.error(f"Failed to delete model '{full_model_name}': {str(e)}")
@@ -808,7 +808,7 @@ def delete_model_ollama():
 @app.route('/api/generate', methods=['POST'])
 def generate_ollama():
     global modele_rkllm, current_model
-    
+
     lock_acquired = False  # Track lock status
 
     try:
@@ -817,11 +817,11 @@ def generate_ollama():
         prompt = data.get('prompt')
         system = data.get('system', '')
         stream = data.get('stream', True)
-        
+
         # Support format options for structured JSON output
         format_spec = data.get('format')
         options = data.get('options', {})
-        
+
         if DEBUG_MODE:
             logger.debug(f"API generate request: model={model_name}, stream={stream}, format={format_spec}")
 
@@ -837,7 +837,7 @@ def generate_ollama():
             if DEBUG_MODE:
                 logger.error(f"Model '{model_name}' not found")
             return jsonify({"error": f"Model '{model_name}' not found"}), 404
-        
+
         # Use the full model name for loading
         model_name = full_model_name
 
@@ -852,9 +852,9 @@ def generate_ollama():
             current_model = model_name
 
         # Acquire lock before processing
-        variables.verrou.acquire()
+        variables.lock.acquire()
         lock_acquired = True
-        
+
         # DIRECTLY use the GenerateEndpointHandler instead of the process_ollama_generate_request wrapper
         from src.server_utils import GenerateEndpointHandler
         return GenerateEndpointHandler.handle_request(
@@ -872,14 +872,14 @@ def generate_ollama():
         return jsonify({"error": str(e)}), 500
     finally:
         # Only release if we acquired it
-        if lock_acquired and variables.verrou.locked():
-            variables.verrou.release()
+        if lock_acquired and variables.lock.locked():
+            variables.lock.release()
 
 # Also update the chat endpoint for consistency
 @app.route('/api/chat', methods=['POST'])
 def chat_ollama():
     global modele_rkllm, current_model
-    
+
     lock_acquired = False  # Track lock status
 
     try:
@@ -888,28 +888,28 @@ def chat_ollama():
         messages = data.get('messages', [])
         system = data.get('system', '')
         stream = data.get('stream', True)
-        
+
         # Extract format parameters - can be object or string
         format_spec = data.get('format')
         options = data.get('options', {})
-        
+
         if DEBUG_MODE:
             logger.debug(f"API chat request: model={model_name}, format={format_spec}")
-        
+
         # Check if we're starting a new conversation
         # A new conversation is one that doesn't include any assistant messages
         is_new_conversation = not any(msg.get('role') == 'assistant' for msg in messages)
-        
+
         # Always reset system prompt for new conversations
         if is_new_conversation:
             variables.system = ""
             if DEBUG_MODE:
                 logger.debug("New conversation detected, resetting system prompt")
-        
+
         # Extract system message from messages array if present
         system_in_messages = False
         filtered_messages = []
-        
+
         for message in messages:
             if message.get('role') == 'system':
                 system = message.get('content', '')
@@ -917,21 +917,21 @@ def chat_ollama():
                 # Don't add system message to filtered messages
             else:
                 filtered_messages.append(message)
-        
+
         # Only use the extracted system message or explicit system parameter if provided
         if system_in_messages or system:
             variables.system = system
             messages = filtered_messages
             if DEBUG_MODE:
                 logger.debug(f"Using system message: {system}")
-        
+
         # Improved model resolution
         full_model_name = find_model_by_name(model_name)
         if not full_model_name:
             if DEBUG_MODE:
                 logger.error(f"Model '{model_name}' not found")
             return jsonify({"error": f"Model '{model_name}' not found"}), 404
-        
+
         # Use the full model name for loading
         model_name = full_model_name
 
@@ -941,7 +941,7 @@ def chat_ollama():
                 if DEBUG_MODE:
                     logger.debug(f"Unloading current model: {current_model}")
                 unload_model()
-            
+
             if DEBUG_MODE:
                 logger.debug(f"Loading model: {model_name}")
             modele_instance, error = load_model(model_name)
@@ -962,16 +962,16 @@ def chat_ollama():
                     # Set temperature for model if supported
                 except (ValueError, TypeError):
                     pass
-        
+
         # Store format settings in model instance
         if modele_rkllm:
             modele_rkllm.format_schema = format_spec
             modele_rkllm.format_options = options
-        
+
         # Acquire lock before processing the request
-        variables.verrou.acquire()
+        variables.lock.acquire()
         lock_acquired = True  # Mark lock as acquired
-        
+
         # Create custom request for processing
         custom_req = type('obj', (object,), {
             'json': {
@@ -984,11 +984,11 @@ def chat_ollama():
             },
             'path': '/api/chat'
         })
-        
+
         # Set a flag on the custom request to indicate it should not release the lock
         # as we'll handle it here
         custom_req.handle_lock = False
-        
+
         # Process the request - this won't release the lock
         from src.server_utils import ChatEndpointHandler
         return ChatEndpointHandler.handle_request(
@@ -1000,17 +1000,17 @@ def chat_ollama():
             format_spec=format_spec,
             options=options
         )
-    
+
     except Exception as e:
         logger.exception("Error in chat_ollama")
         return jsonify({"error": str(e)}), 500
-    
+
     finally:
         # Only release if we acquired it
-        if lock_acquired and variables.verrou.locked():
+        if lock_acquired and variables.lock.locked():
             if DEBUG_MODE:
                 logger.debug("Releasing lock in chat_ollama")
-            variables.verrou.release()
+            variables.lock.release()
 
 # Only include debug endpoint if in debug mode
 if DEBUG_MODE:
@@ -1019,9 +1019,9 @@ if DEBUG_MODE:
         """Endpoint to diagnose streaming issues"""
         data = request.json
         stream_data = data.get('stream_data', '')
-        
+
         issues = check_response_format(stream_data)
-        
+
         if issues:
             return jsonify({
                 "status": "error",
@@ -1117,7 +1117,7 @@ def main():
 
     # Start the API server with the chosen port
     print_color(f"Start the API at http://localhost:{port}", "blue")
-    
+
     # Set Flask debug mode to match our debug flag
     flask_debug = DEBUG_MODE
     app.run(host='0.0.0.0', port=int(port), threaded=True, debug=flask_debug)

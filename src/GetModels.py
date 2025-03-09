@@ -2,21 +2,20 @@ import os
 
 MODEL_PATH = "~/RKLLAMA/models"
 
-
 def GetModels():
-    print("Récupération des modèles...")
+    print("Retrieving models...")
 
     if not os.path.exists(MODEL_PATH):
-        print("Le dossier models n'existait pas.\nCréation en cours...")
+        print("The models folder did not exist.\nCreating it...")
         os.mkdir(MODEL_PATH)
 
     models_list = []
 
-    for dest, flooders, files in os.walk(MODEL_PATH):
+    for root, dirs, files in os.walk(MODEL_PATH):
         for file in files:
             if file.endswith(".rkllm"):
                 models_list.append(file)
-    
-    print("Nombre de modèles valides:", len(models_list), "\n")
+
+    print("Number of valid models:", len(models_list), "\n")
 
     return models_list
