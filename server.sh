@@ -99,4 +99,15 @@ if [ -z "$CPU_MODEL" ]; then
   fi
 fi
 
-python3 ~/RKLLAMA/server.py --target_platform "$CPU_MODEL" --port "$PORT"
+# Build the command with proper arguments
+COMMAND="python3 ~/RKLLAMA/server.py --target_platform $CPU_MODEL --port $PORT"
+
+# Add debug flag if needed
+if $DEBUG_MODE; then
+  COMMAND="$COMMAND --debug"
+  echo -e "${YELLOW}Debug mode enabled${RESET}"
+fi
+
+# Execute the command
+echo "Executing: $COMMAND"
+eval $COMMAND
